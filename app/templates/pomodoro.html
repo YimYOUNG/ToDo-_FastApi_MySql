@@ -201,21 +201,25 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 });
 
 async function loadTodoSelect() {
+    console.log('[番茄钟] 开始加载待办列表...');
     try {
         const sel = document.getElementById('todoSelect');
         if (typeof apiGet === 'undefined') {
+            console.warn('[番茄钟] apiGet 未就绪');
             sel.innerHTML = '<option value="">-- 页面加载中... --</option>';
             return;
         }
-        // 先检查登录状态
         const token = localStorage.getItem('access_token');
+        console.log('[番茄钟] Token状态:', token ? '已登录' : '未登录');
         if (!token) {
             sel.innerHTML = '<option value="">-- 请先登录 --</option>';
             return;
         }
         const response = await apiGet('/todos?page_size=50&status=pending');
+        console.log('[番茄钟] API返回:', response);
         sel.innerHTML = '<option value="">-- 关联待办（可选） --</option>';
         if (response && response.items && response.items.length > 0) {
+            console.log('[番茄钟] 待办数量:', response.items.length);
             response.items.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t.id;
@@ -223,6 +227,7 @@ async function loadTodoSelect() {
                 sel.appendChild(opt);
             });
         } else {
+            console.warn('[番茄钟] 没有待处理的待办');
             const opt = document.createElement('option');
             opt.value = '';
             opt.disabled = true;
@@ -230,7 +235,7 @@ async function loadTodoSelect() {
             sel.appendChild(opt);
         }
     } catch(e) {
-        console.warn('加载待办列表失败:', e);
+        console.error('[番茄钟] 加载待办失败:', e.message);
         const sel = document.getElementById('todoSelect');
         sel.innerHTML = '<option value="">-- 加载失败 --</option>';
     }
