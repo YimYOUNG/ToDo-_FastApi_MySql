@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self';">
+    <title>错误 - Todo App</title>
+    <style>
+        :root { --bg-primary:#fff;--bg-secondary:#f8f9fa;--text-primary:#212529;--text-secondary:#6c757d;--primary-color:#4a90d9;--danger-color:#dc3545;--border-color:#dee2e6;--radius:8px; }
+        [data-theme="dark"] { --bg-primary:#1a1a2e;--bg-secondary:#16213e;--text-primary:#e8e8e8;--text-secondary:#a0a0b8;--border-color:#2d3a5c; }
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg-secondary);color:var(--text-primary);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}
+        .error-container{text-align:center;max-width:480px;}
+        .error-code{font-size:6rem;font-weight:700;color:var(--danger-color);line-height:1;margin-bottom:10px;}
+        .error-message{font-size:1.2rem;color:var(--text-secondary);margin-bottom:30px;}
+        a{color:var(--primary-color);text-decoration:none;font-weight:500;}
+        a:hover{text-decoration:underline;}
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-code">{{error_code|default("Error")}}</div>
+    <p class="error-message">{{error_message|default("出错了")}}</p>
+    <a href="/">返回首页</a>
+</div>
+</body>
+</html>

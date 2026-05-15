@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}日历 - Todo App{% endblock %}
+
+{% block content %}
+<div class="calendar">
+    <div class="calendar-header">
+        <button class="btn btn-outline btn-sm" id="prevMonth">&lt; 上月</button>
+        <h2 id="calendarTitle">加载中...</h2>
+        <button class="btn btn-outline btn-sm" id="nextMonth">下月 &gt;</button>
+        <button class="btn btn-primary btn-sm" id="todayBtn">今天</button>
+    </div>
+
+    <div class="calendar-loading" id="calendarLoading" style="text-align:center;padding:40px;display:none;">
+        <div style="font-size:1.5rem;margin-bottom:10px;">⏳</div>
+        <p style="color:var(--text-secondary);">正在加载日历数据...</p>
+    </div>
+
+    <div class="calendar-grid" id="calendarGrid">
+        <div class="calendar-day-name">一</div>
+        <div class="calendar-day-name">二</div>
+        <div class="calendar-day-name">三</div>
+        <div class="calendar-day-name">四</div>
+        <div class="calendar-day-name">五</div>
+        <div class="calendar-day-name">六</div>
+        <div class="calendar-day-name">日</div>
+    </div>
+
+    <div class="calendar-empty-hint" id="calendarEmptyHint" style="display:none;text-align:center;padding:40px;">
+        <div style="font-size:3rem;margin-bottom:16px;">📅</div>
+        <h3 style="color:var(--text-primary);margin-bottom:12px;">本月暂无带截止日期的待办事项</h3>
+        <p style="color:var(--text-secondary);max-width:480px;margin:0 auto;line-height:1.6;">
+            日历只显示了设置了<strong>截止日期</strong>的待办事项。<br>
+            请在创建或编辑待办事项时设置截止日期，它们就会显示在这里。
+        </p>
+        <a href="/todos" class="btn btn-primary" style="margin-top:20px;">去添加待办事项 →</a>
+    </div>
+
+    <div id="dayDetailModal" class="modal-overlay">
+        <div class="modal" style="max-width:480px;">
+            <div class="modal-header">
+                <h2 id="dayDetailTitle">待办事项</h2>
+                <button class="modal-close" onclick="closeDayDetail()">&times;</button>
+            </div>
+            <div id="dayDetailContent"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.calendar { max-width:960px; margin:0 auto; }
+.calendar-header { display:flex; align-items:center; gap:16px; justify-content:center; flex-wrap-wrap; margin-bottom:20px; }
+.calendar-header h2 { font-size:1.5rem; min-width:160px; text-align:center; }
+.calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; background:var(--border-color); border-radius:var(--radius); overflow:hidden; }
+.calendar-day { background:var(--bg-card); min-height:90px; padding:6px; cursor:pointer; transition:background-color 0.15s; position:relative; }
+.calendar-day:hover { background-color:rgba(74,144,217,0.08); }
+.calendar-day.today { background-color:rgba(74,144,217,0.12); border-top:3px solid var(--primary-color); }
+.calendar-day.other-month { opacity:0.35; }
+.calendar-day .day-number { font-weight:600; font-size:0.95rem; color:var(--text-primary); }
+.calendar-day .day-todos { margin-top:4px; }
+.calendar-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:3px; vertical-align:middle; }
+.dot-high { background:#dc3545; }
+.dot-medium { background:#ffc107; }
+.dot-low { background:#28a745; }
+.dot-shared { border: 2px dashed #6c757d; box-sizing: border-box; }
+.todo-count-badge { font-size:0.75rem; color:var(--text-secondary); margin-left:4px; }
+@media (max-width:600px) {
+    .calendar-grid { gap:1px; }
+    .calendar-day { min-height:55px; padding:3px; font-size:0.85rem; }
+    .calendar-dot { width:6px; height:6px; }
+}
+</style>
+
+<script>
+// 初始化为当前日期（修复日期显示错误）
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth() + 1;
+let calendarDataCache = {};
+
+async function loadCalendar() {
+    // 安全检查：确保apiGet函数已定义
+    if (typeof apiGet !== 'function') {
+        console.error('apiGet function not available. Make sure api.js is loaded.');
+        document.getElementById('calendarLoading').style.display = 'none';
+        document.getElementById('calendarEmptyHint').innerHTML = `
+            <div style="font-size:3rem;margin-bottom:16px;">⚙️</div>
+            <h3 style="color:var(--text-primary);margin-bottom:12px;">加载错误</h3>
+            <p style="color:var(--text-secondary);">页面组件未正确加载，请刷新页面重试</p>
+            <button class="btn btn-outline" onclick="location.reload()" style="margin-top:20px;">刷新页面</button>
+        `;
+        document.getElementById('calendarEmptyHint').style.display = 'block';
+        return;
+    }
+
+    // 显示加载状态
+    document.getElementById('calendarLoading').style.display = 'block';
+    document.getElementById('calendarGrid').style.display = 'none';
+    document.getElementById('calendarEmptyHint').style.display = 'none';
+
+    try {
+        const data = await apiGet(`/calendar/${currentYear}/${currentMonth}`);
+        calendarDataCache = data;
+
+        // 隐藏加载状态
+        document.getElementById('calendarLoading').style.display = 'none';
+
+        // 检查是否有待办事项
+        const todoCount = Object.keys(data.todos || {}).length;
+
+        if (todoCount === 0) {
+            // 没有待办事项，显示空提示但仍然渲染日历
+            document.getElementById('calendarEmptyHint').style.display = 'block';
+            document.getElementById('calendarGrid').style.display = 'grid';
+            renderCalendar(data);
+        } else {
+            // 有数据，渲染日历
+            document.getElementById('calendarEmptyHint').style.display = 'none';
+            document.getElementById('calendarGrid').style.display = 'grid';
+            renderCalendar(data);
+        }
+    } catch(e) {
+        console.error('Failed to load calendar:', e);
+        document.getElementById('calendarLoading').style.display = 'none';
+
+        // 如果是认证错误，提示用户登录
+        if (e.message && (e.message.includes('401') || e.message.includes('Unauthorized'))) {
+            document.getElementById('calendarEmptyHint').innerHTML = `
+                <div style="font-size:3rem;margin-bottom:16px;">🔐</div>
+                <h3 style="color:var(--text-primary);margin-bottom:12px;">请先登录</h3>
+                <p style="color:var(--text-secondary);">登录后才能查看日历</p>
+                <a href="/login" class="btn btn-primary" style="margin-top:20px;">去登录 →</a>
+            `;
+            document.getElementById('calendarEmptyHint').style.display = 'block';
+        } else {
+            // 其他错误
+            document.getElementById('calendarEmptyHint').innerHTML = `
+                <div style="font-size:3rem;margin-bottom:16px;">⚠️</div>
+                <h3 style="color:var(--text-primary);margin-bottom:12px;">加载失败</h3>
+                <p style="color:var(--text-secondary);">无法加载日历数据：${e.message}</p>
+                <button class="btn btn-outline" onclick="loadCalendar()" style="margin-top:20px;">重试</button>
+            `;
+            document.getElementById('calendarEmptyHint').style.display = 'block';
+        }
+
+        // 即使出错也尝试渲染当前月份的空日历
+        renderEmptyCalendar();
+    }
+}
+
+function renderEmptyCalendar() {
+    const data = {
+        year: currentYear,
+        month: currentMonth,
+        days_in_month: new Date(currentYear, currentMonth, 0).getDate(),
+        first_weekday: new Date(currentYear, currentMonth - 1, 1).getDay(),
+        todos: {},
+        today: new Date().toISOString().split('T')[0]
+    };
+    renderCalendar(data);
+}
+
+function renderCalendar(data) {
+    // 更新标题为正确的年月（修复日期显示问题）
+    document.getElementById('calendarTitle').textContent = `${data.year}年 ${data.month}月`;
+
+    const grid = document.getElementById('calendarGrid');
+    if (!grid) return;
+
+    const headerCells = grid.querySelectorAll('.calendar-day-name');
+    let html = '';
+    headerCells.forEach(cell => html += cell.outerHTML);
+
+    const todayStr = data.today;
+    let dayNum = 1;
+    const totalDays = data.days_in_month;
+
+    // Python calendar.monthrange returns 0=Monday, JavaScript getDay returns 0=Sunday
+    // Convert Python format to JS format
+    let firstWeekday = data.first_weekday;
+    firstWeekday = (firstWeekday + 1) % 7;
+
+    for (let i = 1; i <= 42; i++) {
+        if (i <= firstWeekday) {
+            const prevMonthDays = getDaysInMonth(data.year, data.month - 1);
+            const prevDay = prevMonthDays - firstWeekday + i;
+            html += `<div class="calendar-day other-month"><span class="day-number">${prevDay}</span></div>`;
+        } else if (dayNum <= totalDays) {
+            const dateStr = `${data.year}-${String(data.month).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+            const isToday = dateStr === todayStr;
+            const todos = data.todos[dateStr] || [];
+
+            let dotsHtml = '';
+            todos.forEach(t => {
+                const sharedClass = t.is_shared ? ' dot-shared' : '';
+                const sharedIcon = t.is_shared ? '🔗' : '';
+                dotsHtml += `<span class="calendar-dot dot-${t.priority}${sharedClass}" title="${escapeHtml(t.title)}">${sharedIcon}</span>`;
+            });
+            if (todos.length > 0) {
+                dotsHtml += `<span class="todo-count-badge">${todos.length}</span>`;
+            }
+
+            html += `<div class="calendar-day${isToday ? ' today' : ''}" onclick="showDayDetail('${dateStr}')">
+                <span class="day-number">${dayNum}</span>
+                <div class="day-todos">${dotsHtml}</div>
+            </div>`;
+            dayNum++;
+        } else {
+            const nextDay = i - firstWeekday - totalDays + 1;
+            html += `<div class="calendar-day other-month"><span class="day-number">${nextDay}</span></div>`;
+        }
+
+        if (i % 7 === 0 && dayNum > totalDays) break;
+    }
+
+    grid.innerHTML = html;
+}
+
+function getDaysInMonth(year, month) {
+    if (month <= 0) { year--; month = 12; }
+    if (month >= 13) { year++; month = 1; }
+    return new Date(year, month, 0).getDate();
+}
+
+function showDayDetail(dateStr) {
+    const todos = calendarDataCache.todos[dateStr] || [];
+    const modal = document.getElementById('dayDetailModal');
+    document.getElementById('dayDetailTitle').textContent = dateStr + ' 的待办事项';
+
+    if (todos.length === 0) {
+        document.getElementById('dayDetailContent').innerHTML =
+            '<p style="color:var(--text-secondary);padding:20px;text-align:center;">该日暂无待办事项</p>';
+    } else {
+        let html = '<div style="max-height:400px;overflow-y:auto;">';
+        todos.forEach(t => {
+            const statusClass = t.status === 'completed' ? 'completed' : '';
+            const sharedBadge = t.is_shared ? ' <span class="badge" style="background:#6c757d;font-size:0.7rem;">🔗 共享</span>' : '';
+            html += `
+                <div class="todo-card ${statusClass}" style="margin-bottom:10px;padding:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <strong>${escapeHtml(t.title)}${sharedBadge}</strong>
+                        <span class="badge badge-${t.status}">${getStatusText(t.status)}</span>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <span class="priority-${t.priority}">${getPriorityText(t.priority)}</span>
+                    </div>
+                </div>`;
+        });
+        html += '</div>';
+        document.getElementById('dayDetailContent').innerHTML = html;
+    }
+    modal.classList.add('active');
+}
+
+function closeDayDetail() {
+    document.getElementById('dayDetailModal').classList.remove('active');
+}
+
+function getStatusText(s) {
+    return {pending:'待处理',in_progress:'进行中',completed:'已完成',cancelled:'已取消'}[s]||s;
+}
+function getPriorityText(p) {
+    return {high:'高',medium:'中',low:'低'}[p]||p;
+}
+
+document.getElementById('prevMonth').onclick = () => {
+    currentMonth--;
+    if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+    loadCalendar();
+};
+document.getElementById('nextMonth').onclick = () => {
+    currentMonth++;
+    if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+    loadCalendar();
+};
+document.getElementById('todayBtn').onclick = () => {
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth() + 1;
+    loadCalendar();
+};
+
+// 页面加载完成后自动获取日历数据（确保api.js已加载）
+document.addEventListener('DOMContentLoaded', function() {
+    loadCalendar();
+});
+</script>
+{% endblock %}

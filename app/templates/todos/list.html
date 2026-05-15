@@ -1,0 +1,799 @@
+{% extends "base.html" %}
+
+{% block title %}待办事项 - Todo App{% endblock %}
+
+{% block extra_head %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-between align-center mb-3">
+    <h1>我的待办事项</h1>
+    <button class="btn btn-primary" onclick="showCreateModal()">+ 新建待办</button>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="searchInput" class="form-control search-input"
+           placeholder="搜索待办事项..." onkeyup="handleSearch(event)">
+    <select id="statusFilter" class="form-control" onchange="loadTodos()">
+        <option value="">所有状态</option>
+        <option value="pending">待处理</option>
+        <option value="in_progress">进行中</option>
+        <option value="completed">已完成</option>
+        <option value="cancelled">已取消</option>
+    </select>
+    <select id="priorityFilter" class="form-control" onchange="loadTodos()">
+        <option value="">所有优先级</option>
+        <option value="high">高</option>
+        <option value="medium">中</option>
+        <option value="low">低</option>
+    </select>
+    <select id="tagFilter" class="form-control" onchange="loadTodos()">
+        <option value="">所有标签</option>
+    </select>
+    <input type="date" id="dueFrom" class="form-control" onchange="loadTodos()">
+    <input type="date" id="dueTo" class="form-control" onchange="loadTodos()">
+    <select id="sortBy" class="form-control" onchange="loadTodos()">
+        <option value="created_at">创建时间</option>
+        <option value="updated_at">更新时间</option>
+        <option value="due_date">截止日期</option>
+        <option value="title">标题</option>
+    </select>
+    <select id="sortOrder" class="form-control" onchange="loadTodos()">
+        <option value="desc">降序</option>
+        <option value="asc">升序</option>
+    </select>
+</div>
+
+<div id="todoList">
+    <p style="text-align:center;color:var(--text-secondary);padding:40px;">加载中...</p>
+</div>
+
+<!-- 批量操作工具栏 -->
+<div id="batchToolbar" class="batch-toolbar" style="display:none;">
+    <div class="d-flex align-center gap-2 flex-wrap">
+        <span class="batch-count" id="selectedCount">已选择 0 项</span>
+        <button class="btn btn-sm btn-danger" onclick="batchDelete()">🗑️ 批量删除</button>
+        <select id="batchStatus" class="form-control form-control-sm" onchange="batchUpdateStatus()">
+            <option value="">批量状态...</option>
+            <option value="pending">待处理</option>
+            <option value="in_progress">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="cancelled">已取消</option>
+        </select>
+        <select id="batchPriority" class="form-control form-control-sm" onchange="batchUpdatePriority()">
+            <option value="">批量优先级...</option>
+            <option value="high">高优先级</option>
+            <option value="medium">中优先级</option>
+            <option value="low">低优先级</option>
+        </select>
+        <button class="btn btn-sm btn-outline" onclick="showBatchTagModal()">🏷️ 批量标签</button>
+        <button class="btn btn-sm btn-outline" onclick="clearSelection()">取消选择</button>
+    </div>
+</div>
+
+<div id="pagination" class="pagination"></div>
+
+<!-- Create/Edit Modal -->
+<div class="modal-overlay" id="todoModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="modalTitle">新建待办</h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <form id="todoForm" onsubmit="handleSubmitTodo(event)">
+            <input type="hidden" id="todoId">
+            <div class="form-group">
+                <label for="todoTitle">标题 *</label>
+                <input type="text" id="todoTitle" class="form-control" required maxlength="200">
+            </div>
+            <div class="form-group">
+                <label for="todoDesc">描述</label>
+                <textarea id="todoDesc" class="form-control" rows="3" maxlength="5000"></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <div class="form-group" style="flex:1">
+                    <label for="todoPriority">优先级</label>
+                    <select id="todoPriority" class="form-control">
+                        <option value="low">低</option>
+                        <option value="medium" selected>中</option>
+                        <option value="high">高</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1">
+                    <label for="todoDueDate">截止日期</label>
+                    <input type="date" id="todoDueDate" class="form-control">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>标签（按住Ctrl多选）</label>
+                <div id="tagCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+                <div id="tagsEmptyHint" style="display:none;color:var(--text-secondary);font-size:0.85rem;margin-top:6px;padding:8px;background:rgba(74,144,217,0.05);border-radius:8px;">
+                    💡 暂无标签，可在下方快速创建
+                </div>
+                <div class="quick-tag-create" style="margin-top:10px;display:flex;gap:6px;align-items:center;background:rgba(74,144,217,0.04);padding:10px;border-radius:var(--radius);border:1px dashed var(--border-color);">
+                    <span>🏷️</span>
+                    <input type="text" id="newTagName" class="form-control" placeholder="输入新标签名称..." maxlength="50" style="flex:1;font-size:0.85rem;" onkeypress="if(event.key==='Enter'){event.preventDefault();quickCreateTag();}">
+                    <input type="color" id="newTagColor" value="#3498db" title="选择颜色" style="width:36px;height:32px;border:none;cursor:pointer;border-radius:4px;padding:0;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="quickCreateTag()">+ 创建</button>
+                </div>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+                <button type="submit" class="btn btn-primary" style="flex:1">保存</button>
+                <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Batch Tag Modal -->
+<div class="modal-overlay" id="batchTagModal">
+    <div class="modal" style="max-width:450px;">
+        <div class="modal-header">
+            <h2>🏷️ 批量设置标签</h2>
+            <button class="modal-close" onclick="closeBatchTagModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom:12px;color:var(--text-secondary);font-size:0.9rem;">
+                为选中的 <strong id="batchTagCount">0</strong> 项设置标签：
+            </p>
+            <div id="batchTagCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+            </div>
+            <div class="d-flex gap-2 mt-2">
+                <button type="button" class="btn btn-primary" style="flex:1" onclick="applyBatchTags()">应用标签</button>
+                <button type="button" class="btn btn-outline" onclick="closeBatchTagModal()">取消</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+const pageSize = 20;
+
+async function loadTags() {
+    try {
+        const tags = await apiGet('/tags');
+        const select = document.getElementById('tagFilter');
+        tags.forEach(tag => {
+            const opt = document.createElement('option');
+            opt.value = tag.id;
+            opt.textContent = tag.name;
+            select.appendChild(opt);
+        });
+
+        // 更新新建待办弹窗中的标签复选框
+        const container = document.getElementById('tagCheckboxes');
+        const emptyHint = document.getElementById('tagsEmptyHint');
+
+        container.innerHTML = '';
+
+        if (tags.length === 0) {
+            emptyHint.style.display = 'block';
+        } else {
+            emptyHint.style.display = 'none';
+            tags.forEach(tag => {
+                container.innerHTML += `
+                    <label style="cursor:pointer;font-size:0.9rem;background:rgba(74,144,217,0.08);padding:4px 10px;border-radius:16px;transition:background 0.2s;">
+                        <input type="checkbox" name="tags" value="${escapeHtml(tag.id)}"
+                               style="margin-right:5px;">
+                        <span style="color:${escapeHtml(tag.color)};font-size:0.75rem;">●</span>
+                        ${escapeHtml(tag.name)}
+                    </label>`;
+            });
+        }
+    } catch (e) {
+        console.error('Failed to load tags:', e);
+    }
+}
+
+// 快速创建标签
+async function quickCreateTag() {
+    const nameInput = document.getElementById('newTagName');
+    const colorInput = document.getElementById('newTagColor');
+
+    const name = nameInput.value.trim();
+    const color = colorInput.value;
+
+    if (!name) {
+        alert('请输入标签名称');
+        nameInput.focus();
+        return;
+    }
+
+    try {
+        const newTag = await apiPost('/tags', { name, color });
+
+        // 清空输入框
+        nameInput.value = '';
+
+        // 重新加载标签列表（避免重复）
+        const select = document.getElementById('tagFilter');
+        select.innerHTML = '<option value="">所有标签</option>';
+
+        await loadTags();
+
+        // 自动勾选刚创建的标签
+        const checkboxes = document.querySelectorAll(`input[name="tags"][value="${newTag.id}"]`);
+        checkboxes.forEach(cb => cb.checked = true);
+
+    } catch (e) {
+        alert('创建标签失败：' + e.message);
+    }
+}
+
+async function loadTodos(page = 1) {
+    currentPage = page;
+
+    const dueFromVal = document.getElementById('dueFrom').value;
+    const dueToVal = document.getElementById('dueTo').value;
+
+    const params = new URLSearchParams({
+        page: page,
+        page_size: pageSize,
+        status: document.getElementById('statusFilter').value,
+        priority: document.getElementById('priorityFilter').value,
+        tag_id: document.getElementById('tagFilter').value,
+        search: document.getElementById('searchInput').value,
+        sort_by: document.getElementById('sortBy').value,
+        sort_order: document.getElementById('sortOrder').value
+    });
+
+    // 只在日期有值时才添加参数（避免空字符串导致422验证错误）
+    if (dueFromVal) params.append('due_from', dueFromVal);
+    if (dueToVal) params.append('due_to', dueToVal);
+
+    try {
+        console.log('Loading todos with params:', params.toString());
+        const data = await apiGet(`/todos?${params}`);
+        console.log('Todos loaded successfully:', data);
+        renderTodoList(data);
+        renderPagination(data);
+    } catch (e) {
+        console.error('Load todos error:', e);
+        console.error('Error details:', JSON.stringify(e, null, 2));
+
+        // 智能提取错误信息
+        let errorMsg = '加载失败';
+        let errorDetail = '';
+
+        if (e.message) {
+            errorMsg = e.message;
+
+            // 处理422验证错误的详细信息
+            if (e.message.includes('valid date') || e.message.includes('too short')) {
+                errorMsg = '日期参数格式错误';
+                errorDetail = '请确保日期格式正确（YYYY-MM-DD），或清空日期筛选条件';
+            }
+            else if (e.message.includes('[object Object]')) {
+                errorMsg = '加载数据失败';
+                errorDetail = '可能是网络问题或服务器错误，请检查浏览器控制台获取详细信息';
+
+                if (e.stack) console.error('Stack trace:', e.stack);
+            }
+            else if (e.message.includes('Not authenticated') || e.message.includes('401')) {
+                errorMsg = '未登录或登录已过期';
+                errorDetail = '请重新登录后再试';
+            }
+            else if (e.message.includes('404') || e.message.includes('Not Found')) {
+                errorMsg = '接口不存在';
+                errorDetail = 'API路径可能配置错误，请联系管理员';
+            }
+            else if (e.message.includes('500') || e.message.includes('Server')) {
+                errorMsg = '服务器内部错误';
+                errorDetail = '后端服务出现异常，请稍后重试';
+            }
+        }
+
+        document.getElementById('todoList').innerHTML =
+            `<div style="text-align:center;padding:40px;">
+               <p style="font-size:2rem;margin-bottom:12px;">⚠️</p>
+               <p style="color:var(--danger-color);font-weight:500;font-size:1.1rem;">${escapeHtml(errorMsg)}</p>
+               ${errorDetail ? `<p style="color:var(--text-secondary);font-size:0.9rem;margin-top:8px;">${escapeHtml(errorDetail)}</p>` : ''}
+               <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:12px;padding:8px;background:rgba(0,0,0,0.05);border-radius:6px;word-break:break-all;">
+                   📋 调试信息：${escapeHtml(e.message || 'Unknown error')}
+               </p>
+               <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                   <button class="btn btn-outline" onclick="loadTodos(1)">🔄 重试加载</button>
+                   <button class="btn btn-primary" onclick="location.reload()">🔄 刷新页面</button>
+                   <button class="btn btn-outline" onclick="document.getElementById('dueFrom').value='';document.getElementById('dueTo').value='';loadTodos(1)">📅 清空日期筛选</button>
+               </div>
+           </div>`;
+    }
+}
+
+function renderTodoList(data) {
+    const container = document.getElementById('todoList');
+
+    if (!data.items || data.items.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:60px;color:var(--text-secondary);">
+                <p style="font-size:2rem;margin-bottom:12px;">📝</p>
+                <p>暂无待办事项</p>
+                <button class="btn btn-primary mt-2" onclick="showCreateModal()">创建第一个待办</button>
+            </div>`;
+        return;
+    }
+
+    let html = '<div class="table-container"><table><thead><tr>';
+    html += '<th style="width:40px;text-align:center;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>';
+    html += '<th>状态</th><th>标题</th><th>优先级</th><th>截止日期</th><th>标签</th><th>操作</th>';
+    html += '</tr></thead><tbody>';
+
+    data.items.forEach(todo => {
+        console.log('渲染待办:', todo.id, 'title:', todo.title, 'is_shared:', todo.is_shared, 'permission:', todo.permission);
+        
+        const statusClass = `badge-${todo.status}`;
+        const priorityClass = `priority-${todo.priority}`;
+        const completedClass = todo.status === 'completed' ? 'completed' : '';
+        const isShared = todo.is_shared === true;
+        const isReadonly = isShared && (todo.permission === 'read');
+        const isWritable = isShared && (todo.permission === 'write');
+        
+        let sharedRowClass = '';
+        let sharedBadge = '';
+        let sharedInfo = '';
+
+        if (isReadonly) {
+            sharedRowClass = 'readonly-todo-row';
+            sharedBadge = `<span class="readonly-badge" title="来自 ${escapeHtml(todo.shared_by || '他人')} 的只读共享">🔒 只读</span>`;
+            sharedInfo = `<small style="color:var(--text-secondary);display:block;margin-top:2px;font-size:0.75rem;">来自: ${escapeHtml(todo.shared_by || '未知')}</small>`;
+        } else if (isWritable) {
+            sharedRowClass = 'shared-todo-row';
+            sharedBadge = `<span class="shared-badge" title="来自 ${escapeHtml(todo.shared_by || '他人')} 的可编辑共享">🤝 共享</span>`;
+            sharedInfo = `<small style="color:var(--info-color);display:block;margin-top:2px;font-size:0.75rem;">来自: ${escapeHtml(todo.shared_by || '未知')}</small>`;
+        }
+
+        html += `<tr class="${completedClass} ${sharedRowClass}" data-todo-id="${escapeHtml(todo.id)}">`;
+        
+        if (isReadonly) {
+            html += '<td style="text-align:center;"><span class="readonly-icon" title="只读待办">🔒</span></td>';
+        } else {
+            html += `<td style="text-align:center;"><input type="checkbox" class="todo-checkbox" value="${escapeHtml(todo.id)}" onchange="updateBatchToolbar()"></td>`;
+        }
+        
+        html += `<td><span class="badge ${statusClass}">${getStatusText(todo.status)}</span>${sharedBadge}</td>`;
+        html += `<td><strong>${escapeHtml(todo.title)}</strong>${sharedInfo}</td>`;
+        html += `<td class="${priorityClass}">${getPriorityText(todo.priority)}</td>`;
+        html += `<td>${formatDate(todo.due_date) || '-'}</td>`;
+        html += '<td>';
+
+        if (todo.tags && todo.tags.length > 0) {
+            todo.tags.forEach(tag => {
+                html += `<span class="tag"><span class="tag-dot" style="background-color:${escapeHtml(tag.color)}"></span>${escapeHtml(tag.name)}</span> `;
+            });
+        }
+
+        html += '</td>';
+        html += '<td><div class="d-flex gap-1 flex-wrap">';
+        
+        if (isReadonly) {
+            html += `<span class="readonly-hint" title="这是只读待办，无法操作">👁️ 仅查看</span>`;
+        } else if (isWritable) {
+            html += `<button class="btn btn-sm btn-outline" onclick="toggleTodo('${escapeHtml(todo.id)}')" title="标记完成/重新打开">✓</button>`;
+            html += `<button class="btn btn-sm btn-outline" onclick="editSharedTodo('${escapeHtml(todo.id)}', '${escapeHtml(todo.shared_by || '')}')" title="编辑此共享待办（变更会同步给分享者）">✏️ 编辑</button>`;
+            html += `<span class="shared-hint" title="这是共享待办，无法删除">📎</span>`;
+        } else {
+            html += `<button class="btn btn-sm btn-outline" onclick="toggleTodo('${escapeHtml(todo.id)}')">✓</button>`;
+            html += `<button class="btn btn-sm btn-outline" onclick="editTodo('${escapeHtml(todo.id)}')">编辑</button>`;
+            html += `<button class="btn btn-sm btn-danger" onclick="deleteTodo('${escapeHtml(todo.id)}')">删除</button>`;
+        }
+        
+        html += '</div></td></tr>';
+    });
+
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function renderPagination(data) {
+    const container = document.getElementById('pagination');
+    if (data.total_pages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+
+    let html = '';
+    html += `<button ${currentPage <= 1 ? 'disabled' : ''} onclick="loadTodos(${currentPage - 1})">上一页</button>`;
+
+    for (let i = 1; i <= data.total_pages; i++) {
+        if (i === 1 || i === data.total_pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `<button class="${i === currentPage ? 'active' : ''}" onclick="loadTodos(${i})">${i}</button>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += `<span style="color:var(--text-secondary)">...</span>`;
+        }
+    }
+
+    html += `<button ${currentPage >= data.total_pages ? 'disabled' : ''} onclick="loadTodos(${currentPage + 1})">下一页</button>`;
+    html += `<span style="color:var(--text-secondary);margin-left:12px;">共 ${data.total} 条</span>`;
+
+    container.innerHTML = html;
+}
+
+function getStatusText(status) {
+    const map = { pending: '待处理', in_progress: '进行中', completed: '已完成', cancelled: '已取消' };
+    return map[status] || status;
+}
+
+function getPriorityText(priority) {
+    const map = { high: '高', medium: '中', low: '低' };
+    return map[priority] || priority;
+}
+
+function showCreateModal() {
+    document.getElementById('modalTitle').textContent = '新建待办';
+    document.getElementById('todoId').value = '';
+    document.getElementById('todoForm').reset();
+    document.getElementById('todoModal').classList.add('active');
+}
+
+async function editTodo(id) {
+    try {
+        const todo = await apiGet(`/todos/${id}`);
+        document.getElementById('modalTitle').textContent = '编辑待办';
+        document.getElementById('todoId').value = todo.id;
+        document.getElementById('todoTitle').value = todo.title;
+        document.getElementById('todoDesc').value = todo.description || '';
+        document.getElementById('todoPriority').value = todo.priority;
+        document.getElementById('todoDueDate').value = todo.due_date || '';
+
+        document.querySelectorAll('input[name="tags"]').forEach(cb => {
+            cb.checked = todo.tags.some(t => t.id === cb.value);
+        });
+
+        document.getElementById('todoModal').classList.add('active');
+    } catch (e) {
+        alert('加载失败：' + e.message);
+    }
+}
+
+async function editSharedTodo(id, sharedBy) {
+    try {
+        const todo = await apiGet(`/todos/${id}`);
+        
+        const confirmMsg = `你正在编辑由 "${sharedBy}" 分享给你的待办事项。\n\n编辑后的变更会同步给原分享者。\n\n确定要继续吗？`;
+        if (!confirm(confirmMsg)) return;
+
+        document.getElementById('modalTitle').textContent = `✏️ 编辑共享待办 (来自: ${sharedBy})`;
+        document.getElementById('todoId').value = todo.id;
+        document.getElementById('todoTitle').value = todo.title.replace(/^\[共享\]\s*/, '');
+        document.getElementById('todoDesc').value = todo.description || '';
+        document.getElementById('todoPriority').value = todo.priority;
+        document.getElementById('todoDueDate').value = todo.due_date || '';
+
+        document.querySelectorAll('input[name="tags"]').forEach(cb => {
+            cb.checked = todo.tags.some(t => t.id === cb.value);
+        });
+
+        const sharedHint = document.getElementById('sharedEditHint');
+        if (!sharedHint) {
+            const hint = document.createElement('div');
+            hint.id = 'sharedEditHint';
+            hint.style.cssText = 'background:rgba(23,162,184,0.1);border:1px solid rgba(23,162,184,0.3);padding:10px;border-radius:6px;margin-bottom:12px;font-size:0.85rem;color:var(--info-color);';
+            hint.innerHTML = `📢 <strong>协作提示：</strong>此为共享待办，你的修改会实时同步给分享者 <strong>${escapeHtml(sharedBy)}</strong>`;
+            document.getElementById('todoForm').insertAdjacentElement('afterbegin', hint);
+        } else {
+            sharedHint.innerHTML = `📢 <strong>协作提示：</strong>此为共享待办，你的修改会实时同步给分享者 <strong>${escapeHtml(sharedBy)}</strong>`;
+            sharedHint.style.display = 'block';
+        }
+
+        document.getElementById('todoModal').classList.add('active');
+    } catch (e) {
+        alert('加载失败：' + e.message);
+    }
+}
+
+function closeModal() {
+    document.getElementById('todoModal').classList.remove('active');
+}
+
+async function handleSubmitTodo(e) {
+    e.preventDefault();
+
+    const id = document.getElementById('todoId').value;
+    const tagIds = Array.from(document.querySelectorAll('input[name="tags"]:checked')).map(cb => cb.value);
+
+    const data = {
+        title: document.getElementById('todoTitle').value.trim(),
+        description: document.getElementById('todoDesc').value.trim(),
+        priority: document.getElementById('todoPriority').value,
+        due_date: document.getElementById('todoDueDate').value || null,
+        tag_ids: tagIds
+    };
+
+    try {
+        if (id) {
+            await apiPut(`/todos/${id}`, data);
+        } else {
+            await apiPost('/todos', data);
+        }
+        closeModal();
+        loadTodos(currentPage);
+    } catch (e) {
+        alert('保存失败：' + e.message);
+    }
+}
+
+async function toggleTodo(id) {
+    try {
+        await apiPatch(`/todos/${id}/toggle`);
+        loadTodos(currentPage);
+    } catch (e) {
+        alert('操作失败：' + e.message);
+    }
+}
+
+async function deleteTodo(id) {
+    if (!confirm('确定要删除这个待办事项吗？')) return;
+
+    try {
+        await apiDelete(`/todos/${id}`);
+        loadTodos(currentPage);
+    } catch (e) {
+        alert('删除失败：' + e.message);
+    }
+}
+
+function handleSearch(e) {
+    if (e.key === 'Enter') {
+        loadTodos(1);
+    }
+}
+
+// ==================== 批量操作功能 ====================
+
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.todo-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateBatchToolbar();
+}
+
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.todo-checkbox:checked')).map(cb => cb.value);
+}
+
+function updateBatchToolbar() {
+    const selectedIds = getSelectedIds();
+    const toolbar = document.getElementById('batchToolbar');
+    const countEl = document.getElementById('selectedCount');
+    const selectAllCheckbox = document.getElementById('selectAll');
+
+    if (selectedIds.length > 0) {
+        toolbar.style.display = 'block';
+        countEl.textContent = `已选择 ${selectedIds.length} 项`;
+    } else {
+        toolbar.style.display = 'none';
+    }
+
+    // 更新全选checkbox状态
+    const allCheckboxes = document.querySelectorAll('.todo-checkbox');
+    selectAllCheckbox.checked = allCheckboxes.length > 0 && selectedIds.length === allCheckboxes.length;
+    selectAllCheckbox.indeterminate = selectedIds.length > 0 && selectedIds.length < allCheckboxes.length;
+}
+
+function clearSelection() {
+    document.querySelectorAll('.todo-checkbox').forEach(cb => cb.checked = false);
+    updateBatchToolbar();
+}
+
+async function batchDelete() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return;
+
+    if (!confirm(`确定要删除选中的 ${ids.length} 个待办事项吗？此操作不可恢复！`)) return;
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+        try {
+            await apiDelete(`/todos/${id}`);
+            successCount++;
+        } catch (e) {
+            console.error(`Failed to delete ${id}:`, e);
+            failCount++;
+        }
+    }
+
+    if (failCount > 0) {
+        alert(`批量删除完成：成功 ${successCount} 项，失败 ${failCount} 项`);
+    } else {
+        alert(`成功删除 ${successCount} 个待办事项`);
+    }
+
+    loadTodos(currentPage);
+}
+
+async function batchUpdateStatus() {
+    const status = document.getElementById('batchStatus').value;
+    if (!status) return;
+
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('请先选择待办事项');
+        document.getElementById('batchStatus').value = '';
+        return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+        try {
+            await apiPut(`/todos/${id}`, { status });
+            successCount++;
+        } catch (e) {
+            console.error(`Failed to update status for ${id}:`, e);
+            failCount++;
+        }
+    }
+
+    if (failCount > 0) {
+        alert(`状态更新完成：成功 ${successCount} 项，失败 ${failCount} 项`);
+    }
+
+    document.getElementById('batchStatus').value = '';
+    loadTodos(currentPage);
+}
+
+async function batchUpdatePriority() {
+    const priority = document.getElementById('batchPriority').value;
+    if (!priority) return;
+
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('请先选择待办事项');
+        document.getElementById('batchPriority').value = '';
+        return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+        try {
+            await apiPut(`/todos/${id}`, { priority });
+            successCount++;
+        } catch (e) {
+            console.error(`Failed to update priority for ${id}:`, e);
+            failCount++;
+        }
+    }
+
+    if (failCount > 0) {
+        alert(`优先级更新完成：成功 ${successCount} 项，失败 ${failCount} 项`);
+    }
+
+    document.getElementById('batchPriority').value = '';
+    loadTodos(currentPage);
+}
+
+async function showBatchTagModal() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('请先选择待办事项');
+        return;
+    }
+
+    document.getElementById('batchTagCount').textContent = ids.length;
+
+    try {
+        const tags = await apiGet('/tags');
+        const container = document.getElementById('batchTagCheckboxes');
+
+        container.innerHTML = '';
+
+        if (tags.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary);padding:12px;">暂无标签，请先在新建待办时创建标签</p>';
+        } else {
+            tags.forEach(tag => {
+                container.innerHTML += `
+                    <label style="cursor:pointer;font-size:0.9rem;background:rgba(74,144,217,0.08);padding:6px 12px;border-radius:16px;transition:background 0.2s;">
+                        <input type="checkbox" name="batchTags" value="${escapeHtml(tag.id)}" style="margin-right:5px;">
+                        <span style="color:${escapeHtml(tag.color)};font-size:0.75rem;">●</span>
+                        ${escapeHtml(tag.name)}
+                    </label>`;
+            });
+        }
+
+        document.getElementById('batchTagModal').classList.add('active');
+    } catch (e) {
+        alert('加载标签列表失败：' + e.message);
+    }
+}
+
+function closeBatchTagModal() {
+    document.getElementById('batchTagModal').classList.remove('active');
+}
+
+async function applyBatchTags() {
+    const tagIds = Array.from(document.querySelectorAll('input[name="batchTags"]:checked')).map(cb => cb.value);
+    const ids = getSelectedIds();
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+        try {
+            await apiPut(`/todos/${id}`, { tag_ids: tagIds });
+            successCount++;
+        } catch (e) {
+            console.error(`Failed to update tags for ${id}:`, e);
+            failCount++;
+        }
+    }
+
+    if (failCount > 0) {
+        alert(`标签更新完成：成功 ${successCount} 项，失败 ${failCount} 项`);
+    }
+
+    closeBatchTagModal();
+    loadTodos(currentPage);
+}
+
+// 初始化日期筛选默认值
+function initDateFilters() {
+    const today = new Date();
+    const dueFromInput = document.getElementById('dueFrom');
+    const dueToInput = document.getElementById('dueTo');
+
+    if (!dueFromInput || !dueToInput) {
+        console.warn('日期输入框未找到，延迟初始化');
+        return false;
+    }
+
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    dueFromInput.value = formatDate(today);
+
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    dueToInput.value = formatDate(nextWeek);
+
+    console.log('日期筛选已初始化:', {
+        from: dueFromInput.value,
+        to: dueToInput.value
+    });
+
+    return true;
+}
+
+// 页面初始化（确保DOM就绪后再执行）
+async function initPage() {
+    console.log('页面开始初始化...');
+
+    try {
+        await loadTags();
+        console.log('标签加载完成');
+    } catch (e) {
+        console.error('加载标签失败:', e);
+    }
+
+    const dateInitSuccess = initDateFilters();
+
+    if (dateInitSuccess) {
+        console.log('开始加载待办事项（带默认日期筛选）...');
+        await loadTodos(1);
+    } else {
+        console.warn('日期初始化失败，100ms后重试...');
+        setTimeout(async () => {
+            initDateFilters();
+            await loadTodos(1);
+        }, 100);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPage);
+} else {
+    initPage();
+}
+</script>
+{% endblock %}

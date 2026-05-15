@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}数据统计 - Todo App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-between align-center mb-3">
+    <h1>📊 数据统计</h1>
+    <div class="filter-bar" style="padding:8px 16px;margin-bottom:0;">
+        <button class="btn btn-sm btn-primary active" onclick="loadStats()">全部</button>
+    </div>
+</div>
+
+<div class="stats-grid" id="statsOverview">
+    <div class="stat-card"><div class="stat-value" id="totalTodos">-</div><div class="stat-label">总待办数</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--success-color)" id="completedTodos">-</div><div class="stat-label">已完成</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--primary-color)" id="completionRate">-</div><div class="stat-label">完成率</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--danger-color)" id="overdueTodos">-</div><div class="stat-label">逾期数</div></div>
+</div>
+
+<div class="card mb-3">
+    <h3>完成率</h3>
+    <div class="progress-ring-container">
+        <svg viewBox="0 0 120 120" class="progress-ring" width="180" height="180">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border-color)" stroke-width="10"/>
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--primary-color)" stroke-width="10"
+                    stroke-linecap="round"
+                    id="progressCircle"
+                    transform="rotate(-90 60 60)"
+                    stroke-dasharray="326.73"
+                    stroke-dashoffset="326.73"/>
+        </svg>
+        <div class="progress-text" id="progressText">0%</div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <h3>优先级分布</h3>
+    <div id="priorityDist"></div>
+</div>
+
+<div class="card mb-3">
+    <h3>状态分布</h3>
+    <div id="statusDist"></div>
+</div>
+
+<style>
+.progress-ring-container { display:flex; align-items:center; justify-content:center; padding:20px; position:relative; }
+.progress-text { position:absolute; font-size:2rem; font-weight:700; color:var(--primary-color); }
+.chart-row { display:flex; align-items:center; margin-bottom:14px; }
+.chart-label { width:100px; font-size:0.95rem; font-weight:500; }
+.chart-bar-container { flex:1; height:28px; background:var(--bg-secondary); border-radius:14px; overflow:hidden; }
+.chart-bar { height:100%; border-radius:14px; transition:width 0.6s ease; display:flex; align-items:center; padding-right:10px; justify-content:flex-end; min-width:fit-content; }
+.chart-value { width:40px; text-align:right; font-weight:600; font-size:0.95rem; margin-left:10px; }
+.bar-high { background:var(--danger-color); color:white; }
+.bar-medium { background:var(--warning-color); color:#212529; }
+.bar-low { background:var(--success-color); color:white; }
+.bar-pending { background:#6c757d; color:white; }
+.bar-in_progress { background:var(--info-color); color:white; }
+.bar-completed { background:var(--success-color); color:white; }
+.bar-cancelled { background:var(--danger-color); color:white; }
+</style>
+
+<script>
+async function loadStats() {
+    try {
+        console.log('开始加载统计数据...');
+
+        const [overview, dist] = await Promise.all([
+            apiGet('/statistics/overview'),
+            apiGet('/statistics/distribution')
+        ]);
+
+        console.log('统计数据加载成功:', { overview, dist });
+
+        if (!overview || !dist) {
+            throw new Error('服务器返回数据格式错误');
+        }
+
+        document.getElementById('totalTodos').textContent = overview.total_todos ?? 0;
+        document.getElementById('completedTodos').textContent = overview.completed_todos ?? 0;
+        document.getElementById('completionRate').textContent = (overview.completion_rate ?? 0) + '%';
+        document.getElementById('overdueTodos').textContent = overview.overdue_todos ?? 0;
+
+        updateProgressRing(overview.completion_rate || 0);
+        renderBarChart('priorityDist', dist.by_priority || [], [
+            {key:'high', label:'高', cls:'bar-high'},
+            {key:'medium', label:'中', cls:'bar-medium'},
+            {key:'low', label:'低', cls:'bar-low'}
+        ]);
+        renderBarChart('statusDist', dist.by_status || [], [
+            {key:'pending', label:'待处理', cls:'bar-pending'},
+            {key:'in_progress', label:'进行中', cls:'bar-in_progress'},
+            {key:'completed', label:'已完成', cls:'bar-completed'},
+            {key:'cancelled', label:'已取消', cls:'bar-cancelled'}
+        ]);
+    } catch(e) {
+        console.error('统计加载错误:', e);
+        console.error('错误详情:', JSON.stringify(e, null, 2));
+
+        const errorMsg = e.message || '加载数据失败';
+
+        document.getElementById('priorityDist').innerHTML =
+            `<div style="text-align:center;padding:30px;color:var(--danger-color);">
+                <p>⚠️ 统计数据加载失败</p>
+                <p style="font-size:0.85rem;margin-top:8px;">${errorMsg}</p>
+                <button class="btn btn-sm btn-outline mt-2" onclick="loadStats()">🔄 重试</button>
+             </div>`;
+
+        document.getElementById('statusDist').innerHTML =
+            `<div style="text-align:center;padding:30px;color:var(--danger-color);">
+                <p>⚠️ 状态分布加载失败</p>
+                <button class="btn btn-sm btn-outline mt-2" onclick="loadStats()">🔄 重试</button>
+             </div>`;
+    }
+}
+
+function updateProgressRing(rate) {
+    const circle = document.getElementById('progressCircle');
+    const text = document.getElementById('progressText');
+    const circumference = 2 * Math.PI * 52;
+    const offset = circumference - (rate / 100) * circumference;
+    circle.style.strokeDashoffset = offset;
+    text.textContent = rate + '%';
+}
+
+function renderBarChart(containerId, data, config) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error('容器未找到:', containerId);
+        return;
+    }
+    const maxVal = Math.max(...data.map(d => d.value), 1);
+
+    let html = '';
+    config.forEach(cfg => {
+        const item = data.find(d => d.name === cfg.key);
+        const val = item ? item.value : 0;
+        const pct = (val / maxVal) * 100;
+        html += `
+            <div class="chart-row">
+                <span class="chart-label">${cfg.label}</span>
+                <div class="chart-bar-container">
+                    <div class="chart-bar ${cfg.cls}" style="width:${Math.max(pct, val > 0 ? 4 : 0)}%">${val}</div>
+                </div>
+                <span class="chart-value">${val}</span>
+            </div>`;
+    });
+    container.innerHTML = html;
+}
+
+// 页面初始化 - 确保DOM和API都就绪后再加载
+function initStatistics() {
+    console.log('统计页面开始初始化...');
+
+    // 检查 apiGet 函数是否已加载
+    if (typeof apiGet === 'undefined') {
+        console.warn('apiGet 未定义，500ms后重试...');
+        setTimeout(initStatistics, 500);
+        return;
+    }
+
+    // 检查关键DOM元素是否存在
+    const totalEl = document.getElementById('totalTodos');
+    if (!totalEl) {
+        console.warn('DOM元素未就绪，300ms后重试...');
+        setTimeout(initStatistics, 300);
+        return;
+    }
+
+    console.log('DOM和API都已就绪，开始加载数据...');
+    loadStats();
+}
+
+// 使用DOMContentLoaded确保DOM完全加载
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStatistics);
+} else {
+    initStatistics();
+}
+</script>
+{% endblock %}

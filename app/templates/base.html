@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; img-src 'self' data:;">
+    <title>{% block title %}Todo App{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=6.2">
+    {% block extra_css %}{% endblock %}
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">📋 Todo App</a>
+        </div>
+        <button class="nav-toggle" aria-label="Toggle navigation" onclick="toggleNav()">
+            ☰
+        </button>
+        <div class="nav-menu" id="navMenu">
+            <a href="/todos" class="nav-link">待办事项</a>
+            <a href="/calendar" class="nav-link">日历</a>
+            <a href="/statistics" class="nav-link">统计</a>
+            <a href="/pomodoro" class="nav-link">番茄钟</a>
+            <a href="/collaboration" class="nav-link">协作</a>
+            <div class="nav-right">
+                <button id="darkModeToggle" class="btn-icon" onclick="toggleDarkMode()" title="切换暗色模式">
+                    🌙
+                </button>
+                <div class="user-profile" id="userInfo" style="display:none;">
+                    <div class="avatar" id="userAvatar">👤</div>
+                    <span class="username" id="userName"></span>
+                </div>
+                <button id="logoutBtn" class="btn btn-outline" onclick="logout()">退出</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2024 Todo App. Built with FastAPI & MySQL.</p>
+    </footer>
+
+    <script src="/static/js/api.js?v=2.1"></script>
+    <script src="/static/js/dark_mode.js?v=1.0"></script>
+    <script>
+        function toggleNav() {
+            const menu = document.getElementById('navMenu');
+            menu.classList.toggle('active');
+        }
+
+        async function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login';
+        }
+
+        async function checkAuth() {
+            const token = localStorage.getItem('access_token');
+            const userInfo = document.getElementById('userInfo');
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+
+            if (!token) {
+                userInfo.style.display = 'none';
+                return;
+            }
+
+            try {
+                const user = await apiGet('/auth/me');
+                userInfo.style.display = 'flex';
+                userName.textContent = user.username || '';
+
+                // 根据用户名生成稳定的头像Emoji（个性化）
+                const avatarEmojis = ['🧑‍💼', '👩‍💻', '🧙‍♂️', '👨‍🎨', '👩‍🔬', '🧑‍🚀', '👨‍🍳', '👩‍🎤'];
+                const index = user.username.charCodeAt(0) % avatarEmojis.length;
+                userAvatar.textContent = avatarEmojis[index];
+            } catch (e) {
+                userInfo.style.display = 'none';
+            }
+        }
+
+        checkAuth();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

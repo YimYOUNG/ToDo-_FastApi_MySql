@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;">
+    <title>注册 - Todo App</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-attachment: fixed;
+        }
+        [data-theme="dark"] body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background-attachment: fixed;
+        }
+        .auth-wrapper { width: 100%; max-width: 420px; padding: 20px; }
+        .auth-card {
+            background: var(--bg-primary);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px 36px;
+            animation: slideUp 0.5s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .auth-logo { text-align: center; margin-bottom: 28px; }
+        .auth-logo-icon {
+            width: 64px; height: 64px;
+            background: linear-gradient(135deg, var(--primary-color), #764ba2);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 12px;
+            color: white;
+        }
+        .auth-logo h1 { font-size: 1.6rem; color: var(--text-primary); font-weight: 700; }
+        .auth-logo p { color: var(--text-secondary); font-size: 0.9rem; margin-top: 4px; }
+        .form-group { margin-bottom: 18px; }
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        .input-wrap {
+            position: relative;
+        }
+        .input-wrap .form-control {
+            padding-left: 44px;
+        }
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.1rem;
+            opacity: 0.45;
+            pointer-events: none;
+            line-height: 1;
+        }
+        .form-control {
+            width: 100%; padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.25s ease;
+            outline: none;
+        }
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(74,144,217,0.12);
+        }
+        .btn-register {
+            width: 100%; padding: 13px; border: none; border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary-color), #764ba2);
+            color: white; font-size: 1rem; font-weight: 600;
+            cursor: pointer; transition: all 0.25s ease; letter-spacing: 0.5px;
+        }
+        .btn-register:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(74,144,217,0.4); }
+        .btn-register:active { transform: translateY(0); }
+        .error-msg {
+            background: rgba(220,53,69,0.08); color: var(--danger-color);
+            padding: 12px 16px; border-radius: 10px; font-size: 0.88rem;
+            margin-bottom: 16px; border-left: 4px solid var(--danger-color);
+        }
+        .password-strength { font-size: 0.82rem; margin-top: 5px; min-height: 18px; }
+        .auth-footer { text-align: center; margin-top: 20px; color: var(--text-secondary); font-size: 0.9rem; }
+        .auth-footer a { color: var(--primary-color); text-decoration: none; font-weight: 600; }
+        .auth-footer a:hover { text-decoration: underline; }
+        .input-icon-wrap { position: relative; }
+        .input-icon-wrap .form-control { padding-left: 44px; }
+        .input-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 1.1rem; opacity: 0.5; pointer-events: none; }
+        .theme-switch {
+            position: fixed; top: 20px; right: 20px; z-index: 100;
+            background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 50%;
+            width: 42px; height: 42px; display: flex;
+            align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1.2rem; transition: all 0.3s; color: white;
+        }
+        [data-theme="dark"] .theme-switch { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
+        .theme-switch:hover { transform: scale(1.1); }
+        .back-home {
+            position: fixed;
+            top: 20px; left: 20px; z-index: 100;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            width: 42px; height: 42px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 1.2rem;
+            transition: all 0.3s; color: white; text-decoration: none;
+        }
+        [data-theme="dark"] .back-home { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.1); }
+        .back-home:hover { transform: scale(1.1); }
+        @media (max-width: 480px) { .auth-card { padding: 32px 24px; margin: 10px; } .auth-wrapper { padding: 10px; } }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-home" title="返回首页">🏠</a>
+    <button class="theme-switch" onclick="toggleDarkMode()" id="themeBtn" title="切换主题">🌙</button>
+
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="auth-logo-icon">📋</div>
+                <h1>创建账号</h1>
+                <p>注册开始管理您的待办事项</p>
+            </div>
+
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">👤</span>
+                        <input type="text" id="username" name="username" required
+                               minlength="3" maxlength="50" pattern="[a-zA-Z0-9_]+"
+                               autocomplete="username"
+                               placeholder="3-50位，字母数字下划线" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="email">邮箱</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">📧</span>
+                        <input type="email" id="email" name="email" required
+                               autocomplete="email"
+                               placeholder="请输入邮箱地址" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔒</span>
+                        <input type="password" id="password" name="password" required
+                               minlength="8" maxlength="128" autocomplete="new-password"
+                               placeholder="至少8位，含大小写字母、数字和特殊字符" class="form-control">
+                    </div>
+                    <div class="password-strength" id="pwdStrength"></div>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认密码</label>
+                    <div class="input-wrap">
+                        <span class="input-icon">🔐</span>
+                        <input type="password" id="confirmPassword" name="confirmPassword" required
+                               minlength="8" autocomplete="new-password"
+                               placeholder="再次输入密码" class="form-control">
+                    </div>
+                </div>
+                <div id="errorMsg" class="error-msg" style="display:none;"></div>
+                <button type="submit" class="btn-register">注 册</button>
+            </form>
+
+            <p class="auth-footer">
+                已有账号？<a href="/login">立即登录</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/dark_mode.js"></script>
+    <script>
+    (function() {
+        const THEME_KEY = 'theme_preference';
+        function getSystemTheme() { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+        function getSavedTheme() { return localStorage.getItem(THEME_KEY); }
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+            document.getElementById('themeBtn').textContent = theme === 'dark' ? '☀️' : '🌙';
+        }
+        function initTheme() { const s = getSavedTheme(); s ? setTheme(s) : setTheme(getSystemTheme()); }
+        function toggleDarkMode() { setTheme((document.documentElement.getAttribute('data-theme') || 'light') === 'dark' ? 'light' : 'dark'); }
+        window.toggleDarkMode = toggleDarkMode;
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initTheme);
+        else initTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => { if (!getSavedTheme()) setTheme(e.matches ? 'dark' : 'light'); });
+    })();
+
+    document.getElementById('password').addEventListener('input', function() {
+        const pwd = this.value;
+        const strengthEl = document.getElementById('pwdStrength');
+        let strength = 0;
+        if (pwd.length >= 8) strength++;
+        if (/[a-z]/.test(pwd)) strength++;
+        if (/[A-Z]/.test(pwd)) strength++;
+        if (/\d/.test(pwd)) strength++;
+        if (/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) strength++;
+        const labels = ['', '弱', '较弱', '中等', '强', '很强'];
+        const colors = ['#dc3545', '#fd7e14', '#ffc107', '#20c997', '#28a745'];
+        if (pwd.length > 0 && strength > 0) {
+            strengthEl.textContent = '密码强度: ' + labels[strength];
+            strengthEl.style.color = colors[strength - 1];
+        } else { strengthEl.textContent = ''; }
+    });
+
+    async function handleRegister(e) {
+        e.preventDefault();
+        const errorMsg = document.getElementById('errorMsg');
+        errorMsg.style.display = 'none';
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        if (password !== confirmPassword) { showError('两次输入的密码不一致'); return; }
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password })
+            });
+            const data = await response.json();
+            if (!response.ok) { showError(data.detail || '注册失败'); return; }
+            window.location.href = '/login?registered=1';
+        } catch (err) { showError('网络错误，请重试'); }
+    }
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+    </script>
+</body>
+</html>

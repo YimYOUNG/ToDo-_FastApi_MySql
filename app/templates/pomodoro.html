@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}番茄钟 - Todo App{% endblock %}
+
+{% block content %}
+<div class="pomodoro-container">
+    <h1 style="margin-bottom:30px;">🍅 番茄钟</h1>
+
+    <div class="pomodoro-modes">
+        <button class="btn btn-primary mode-btn active" data-mode="work" data-time="25">工作 25分钟</button>
+        <button class="btn btn-outline mode-btn" data-mode="short-break" data-time="5">短休息 5分钟</button>
+        <button class="btn btn-outline mode-btn" data-mode="long-break" data-time="15">长休息 15分钟</button>
+    </div>
+
+    <div class="pomodoro-timer" id="timerDisplay">25:00</div>
+
+    <div class="pomodoro-controls">
+        <button class="btn btn-primary btn-lg" id="startBtn" onclick="toggleTimer()">开始</button>
+        <button class="btn btn-outline btn-lg" onclick="resetTimer()">重置</button>
+    </div>
+
+    <div class="pomodoro-select mt-2" style="width:100%;max-width:360px;">
+        <label class="form-group" style="margin-bottom:0;">
+            <select id="todoSelect" class="form-control">
+                <option value="">-- 关联待办（可选） --</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="pomodoro-stats card mt-3" style="width:100%;max-width:500px;padding:24px;text-align:center;">
+        <h3 style="margin-bottom:16px;">今日番茄统计</h3>
+        <div style="font-size:3rem;font-weight:700;color:var(--primary-color);" id="todayCount">0</div>
+        <p style="color:var(--text-secondary);">个番茄完成</p>
+        <div style="font-size:1.5rem;font-weight:600;color:var(--text-secondary);" idtotalCount">0</div>
+        <p style="color:var(--text-secondary);">总计番茄</p>
+    </div>
+</div>
+
+<style>
+.pomodoro-timer {
+    width:260px;height:260px;border-radius:50%;
+    border:6px solid var(--primary-color);
+    display:flex;align-items:center;justify-content:center;
+    font-size:3.5rem;font-weight:700;color:var(--text-primary);
+    margin:30px auto;position:relative;
+    transition:border-color 0.3s;
+}
+.pomodoro-timer.running { border-color:var(--success-color); }
+.pomodoro-timer.break-mode { border-color:var(--info-color); }
+.pomodoro-modes { display:flex;gap:8px;flex-wrap:wrap;justify-content:center; }
+.mode-btn.active { background-color:var(--primary-color); color:white; }
+.pomodoro-controls { display:flex;gap:12px;justify-content:center; margin-top:20px; }
+.btn-lg { padding:12px 32px; font-size:1.1rem; }
+@media (max-width:480px){
+    .pomodoro-timer{width:200px;height:200px;font-size:2.5rem;}
+    .mode-btn{font-size:0.85rem;padding:8px 14px;}
+}
+</style>
+
+<script>
+let timerInterval = null;
+let timeLeft = 25 * 60;
+let totalTime = 25 * 60;
+let isRunning = false;
+let currentMode = 'work';
+
+const STORAGE_KEY = 'pomodoro_stats';
+
+function getPomoStats() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+    catch { return {}; }
+}
+
+function savePomoStats(stats) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
+}
+
+function updateStatsDisplay() {
+    const stats = getPomoStats();
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('todayCount').textContent = stats[today] || 0;
+
+    let total = 0;
+    Object.values(stats).forEach(v => total += v);
+    document.getElementById('totalCount').textContent = total;
+}
+
+function recordPomo() {
+    const stats = getPomoStats();
+    const today = new Date().toISOString().split('T')[0];
+    stats[today] = (stats[today] || 0) + 1;
+    savePomoStats(stats);
+    updateStatsDisplay();
+}
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function updateDisplay() {
+    const el = document.getElementById('timerDisplay');
+    el.textContent = formatTime(timeLeft);
+    const progress = ((totalTime - timeLeft) / totalTime) * 360;
+    el.style.background = `conic-gradient(var(--primary-color) ${progress}deg, transparent ${progress}deg)`;
+}
+
+function toggleTimer() {
+    const btn = document.getElementById('startBtn');
+    const display = document.getElementById('timerDisplay');
+
+    if (isRunning) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        isRunning = false;
+        btn.textContent = '继续';
+        display.classList.remove('running');
+    } else {
+        isRunning = true;
+        btn.textContent = '暂停';
+        display.classList.add('running');
+
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                isRunning = false;
+                btn.textContent = '开始';
+                display.classList.remove('running');
+
+                playAlarm();
+                sendNotification();
+                if (currentMode === 'work') recordPomo();
+            }
+        }, 1000);
+    }
+}
+
+function resetTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    isRunning = false;
+    timeLeft = totalTime;
+    document.getElementById('startBtn').textContent = '开始';
+    document.getElementById('timerDisplay').classList.remove('running');
+    updateDisplay();
+}
+
+function setMode(mode, minutes) {
+    currentMode = mode;
+    totalTime = minutes * 60;
+    timeLeft = totalTime;
+    resetTimer();
+
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+
+    const display = document.getElementById('timerDisplay');
+    display.classList.toggle('break-mode', mode !== 'work');
+}
+
+function playAlarm() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 800;
+        gain.gain.value = 0.3;
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, 500);
+        setTimeout(() => {
+            const ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx2.createOscillator();
+            const g = ctx2.createGain();
+            o.connect(g); g.connect(ctx2.destination);
+            o.frequency.value = 800; g.gain.value = 0.3;
+            o.start(); setTimeout(() => { o.stop(); ctx2.close(); }, 500);
+        }, 700);
+    } catch(e) {}
+}
+
+function sendNotification() {
+    if ('Notification' in window && Notification.permission === 'granted') {
+        const msg = currentMode === 'work' ? '工作时间结束！该休息一下了~' : '休息结束！准备开始下一个番茄吧！';
+        new Notification('🍅 番茄钟', { body: msg });
+    }
+}
+
+if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+}
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode, parseInt(btn.dataset.time)));
+});
+
+async function loadTodoSelect() {
+    try {
+        const todos = await apiGet('/todos?page_size=50&status=pending');
+        const sel = document.getElementById('todoSelect');
+        if (todos.items) {
+            todos.items.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.textContent = t.title;
+                sel.appendChild(opt);
+            });
+        }
+    } catch(e) {}
+}
+
+updateDisplay();
+updateStatsDisplay();
+
+// 确保API加载完成后再初始化
+function initPomodoro() {
+    if (typeof apiGet === 'undefined') {
+        setTimeout(initPomodoro, 300);
+        return;
+    }
+    loadTodoSelect();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPomodoro);
+} else {
+    initPomodoro();
+}
+</script>
+{% endblock %}

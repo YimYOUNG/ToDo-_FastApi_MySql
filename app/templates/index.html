@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - Todo App{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>📋 Todo App</h1>
+    <p class="hero-subtitle">高效管理您的待办事项，让每一天都井然有序</p>
+    <div class="hero-actions" id="heroActions">
+        <a href="/register" class="btn btn-primary btn-lg">开始使用</a>
+        <a href="/login" class="btn btn-outline btn-lg">登录</a>
+    </div>
+</div>
+
+<div class="features-grid">
+    <div class="feature-card card">
+        <div class="feature-icon">✅</div>
+        <h3>任务管理</h3>
+        <p>创建、编辑、删除待办事项，支持优先级分类和截止日期设置</p>
+    </div>
+    <div class="feature-card card">
+        <div class="feature-icon">🏷️</div>
+        <h3>标签分类</h3>
+        <p>自定义标签系统，快速归类和筛选您的待办事项</p>
+    </div>
+    <div class="feature-card card">
+        <div class="feature-icon">📅</div>
+        <h3>日历视图</h3>
+        <p>以日历形式查看所有待办，直观掌握时间安排</p>
+    </div>
+    <div class="feature-card card">
+        <div class="feature-icon">📊</div>
+        <h3>数据统计</h3>
+        <p>完成率、任务分布等数据可视化，了解工作效率</p>
+    </div>
+    <div class="feature-card card">
+        <div class="feature-icon">🍅</div>
+        <h3>番茄钟</h3>
+        <p>内置番茄工作法计时器，专注高效完成每一项任务</p>
+    </div>
+    <div class="feature-card card">
+        <div class="feature-icon">👥</div>
+        <h3>团队协作</h3>
+        <p>分享待办给团队成员，协同完成任务管理</p>
+    </div>
+</div>
+
+<style>
+.hero {
+    text-align: center;
+    padding: 60px 20px;
+}
+.hero h1 {
+    font-size: 2.8rem;
+    margin-bottom: 12px;
+}
+.hero-subtitle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 30px;
+}
+.hero-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+}
+.btn-lg {
+    padding: 14px 32px;
+    font-size: 1.1rem;
+}
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    padding: 40px 0;
+}
+.feature-card {
+    text-align: center;
+    padding: 30px;
+}
+.feature-icon {
+    font-size: 2.5rem;
+    margin-bottom: 14px;
+}
+.feature-card h3 {
+    margin-bottom: 10px;
+    font-size: 1.2rem;
+}
+.feature-card p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+@media (max-width: 600px) {
+    .hero h1 { font-size: 2rem; }
+    .hero-subtitle { font-size: 1rem; }
+    .features-grid { grid-template-columns: 1fr; }
+}
+</style>
+
+<script>
+async function checkLogin() {
+    const token = localStorage.getItem('access_token');
+    const heroActions = document.getElementById('heroActions');
+
+    if (!token) {
+        return;
+    }
+
+    try {
+        const user = await apiGet('/auth/me');
+        heroActions.innerHTML = `
+            <a href="/todos" class="btn btn-primary btn-lg">📋 我的待办</a>
+            <a href="/statistics" class="btn btn-outline btn-lg">📊 数据统计</a>
+            <span style="color:var(--text-secondary);align-self:center;font-size:0.95rem;">
+                👋 欢迎回来, <strong>${escapeHtml(user.username)}</strong>
+            </span>
+        `;
+    } catch(e) {
+        console.error('检查登录状态失败:', e);
+    }
+}
+
+function initHomePage() {
+    if (typeof apiGet === 'undefined') {
+        setTimeout(initHomePage, 300);
+        return;
+    }
+
+    const heroActions = document.getElementById('heroActions');
+    if (!heroActions) {
+        setTimeout(initHomePage, 200);
+        return;
+    }
+
+    checkLogin();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHomePage);
+} else {
+    initHomePage();
+}
+</script>
+{% endblock %}

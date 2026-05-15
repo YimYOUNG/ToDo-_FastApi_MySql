@@ -1,0 +1,19 @@
+[Unit]
+Description=Todo App API Server
+After=network.target mysql.service
+Requires=mysql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/todo-app
+Environment="PATH=/var/www/todo-app/venv/bin"
+ExecStart=/var/www/todo-app/venv/bin/gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000 --timeout 120 --access-logfile /var/log/todo-app/access.log --error-logfile /var/log/todo-app/error.log
+Restart=always
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target
