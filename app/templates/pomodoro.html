@@ -202,17 +202,38 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 
 async function loadTodoSelect() {
     try {
-        const todos = await apiGet('/todos?page_size=50&status=pending');
         const sel = document.getElementById('todoSelect');
-        if (todos.items) {
-            todos.items.forEach(t => {
+        if (typeof apiGet === 'undefined') {
+            sel.innerHTML = '<option value="">-- 页面加载中... --</option>';
+            return;
+        }
+        // 先检查登录状态
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+            sel.innerHTML = '<option value="">-- 请先登录 --</option>';
+            return;
+        }
+        const response = await apiGet('/todos?page_size=50&status=pending');
+        sel.innerHTML = '<option value="">-- 关联待办（可选） --</option>';
+        if (response && response.items && response.items.length > 0) {
+            response.items.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t.id;
                 opt.textContent = t.title;
                 sel.appendChild(opt);
             });
+        } else {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.disabled = true;
+            opt.textContent = '-- 暂无待处理的待办事项 --';
+            sel.appendChild(opt);
         }
-    } catch(e) {}
+    } catch(e) {
+        console.warn('加载待办列表失败:', e);
+        const sel = document.getElementById('todoSelect');
+        sel.innerHTML = '<option value="">-- 加载失败 --</option>';
+    }
 }
 
 // 确保API加载完成后再初始化
