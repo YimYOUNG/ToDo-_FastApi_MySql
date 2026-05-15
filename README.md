@@ -727,37 +727,12 @@ SQLALCHEMY_MAX_OVERFLOW = 10
 
 ---
 
-## 🤝 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
-
-### 代码风格要求
-- 遵循 PEP 8 规范
-- 函数和类必须添加 docstring
-- 复杂逻辑需要注释说明
-- 提交前确保测试通过
-
----
 
 ## 📄 许可证
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
----
 
-## 📞 联系方式
-
-- **作者**: Todo App Team
-- **邮箱**: support@example.com
-- **问题反馈**: [GitHub Issues](<你的仓库地址>/issues)
-
----
 
 ## 🙏 致谢
 
