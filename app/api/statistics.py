@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, case, Date, cast, select
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models.todo import Todo, PriorityEnum, TodoStatus
+from app.models.todo import Todo, PriorityEnum, TodoStatus, TodoShare
 from app.schemas.todo import TodoStatus, PriorityEnum as SchemaPriorityEnum
 from app.core.dependencies import get_current_active_user
 from app.models.user import User
@@ -38,38 +39,74 @@ async def get_overview(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    total = await db.scalar(
+    # 自己的待办
+    own_total = await db.scalar(
         select(func.count()).select_from(Todo).where(Todo.user_id == current_user.id)
     ) or 0
-
-    completed = await db.scalar(
+    own_completed = await db.scalar(
         select(func.count()).select_from(Todo).where(
             Todo.user_id == current_user.id,
             Todo.status == TodoStatus.COMPLETED
         )
     ) or 0
-
-    pending = await db.scalar(
+    own_pending = await db.scalar(
         select(func.count()).select_from(Todo).where(
             Todo.user_id == current_user.id,
             Todo.status == TodoStatus.PENDING
         )
     ) or 0
-
-    in_progress = await db.scalar(
+    own_in_progress = await db.scalar(
         select(func.count()).select_from(Todo).where(
             Todo.user_id == current_user.id,
             Todo.status == TodoStatus.IN_PROGRESS
         )
     ) or 0
-
-    overdue = await db.scalar(
+    own_overdue = await db.scalar(
         select(func.count()).select_from(Todo).where(
             Todo.user_id == current_user.id,
             Todo.due_date < func.curdate(),
             Todo.status != TodoStatus.COMPLETED
         )
     ) or 0
+
+    # 共享待办
+    shared_todos_subq = select(TodoShare.todo_id).where(
+        TodoShare.shared_with_id == current_user.id
+    ).subquery()
+    shared_total = await db.scalar(
+        select(func.count()).select_from(Todo).where(Todo.id.in_(select(shared_todos_subq)))
+    ) or 0
+    shared_completed = await db.scalar(
+        select(func.count()).select_from(Todo).where(
+            Todo.id.in_(select(shared_todos_subq)),
+            Todo.status == TodoStatus.COMPLETED
+        )
+    ) or 0
+    shared_pending = await db.scalar(
+        select(func.count()).select_from(Todo).where(
+            Todo.id.in_(select(shared_todos_subq)),
+            Todo.status == TodoStatus.PENDING
+        )
+    ) or 0
+    shared_in_progress = await db.scalar(
+        select(func.count()).select_from(Todo).where(
+            Todo.id.in_(select(shared_todos_subq)),
+            Todo.status == TodoStatus.IN_PROGRESS
+        )
+    ) or 0
+    shared_overdue = await db.scalar(
+        select(func.count()).select_from(Todo).where(
+            Todo.id.in_(select(shared_todos_subq)),
+            Todo.due_date < func.curdate(),
+            Todo.status != TodoStatus.COMPLETED
+        )
+    ) or 0
+
+    total = own_total + shared_total
+    completed = own_completed + shared_completed
+    pending = own_pending + shared_pending
+    in_progress = own_in_progress + shared_in_progress
+    overdue = own_overdue + shared_overdue
 
     completion_rate = round((completed / total * 100), 2) if total > 0 else 0.0
 
@@ -88,26 +125,52 @@ async def get_distribution(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
-    priority_result = await db.execute(
+    shared_todos_subq = select(TodoShare.todo_id).where(
+        TodoShare.shared_with_id == current_user.id
+    ).subquery()
+
+    # 优先级的分布（自己 + 共享）
+    priority_own = await db.execute(
         select(Todo.priority, func.count())
         .where(Todo.user_id == current_user.id)
         .group_by(Todo.priority)
     )
+    priority_shared = await db.execute(
+        select(Todo.priority, func.count())
+        .where(Todo.id.in_(select(shared_todos_subq)))
+        .group_by(Todo.priority)
+    )
 
-    by_priority = [
-        DistributionItem(name=row[0].value if hasattr(row[0], 'value') else str(row[0]), value=row[1])
-        for row in priority_result.all()
-    ]
+    priority_map = {}
+    for row in priority_own.all():
+        name = row[0].value if hasattr(row[0], 'value') else str(row[0])
+        priority_map[name] = priority_map.get(name, 0) + row[1]
+    for row in priority_shared.all():
+        name = row[0].value if hasattr(row[0], 'value') else str(row[0])
+        priority_map[name] = priority_map.get(name, 0) + row[1]
 
-    status_result = await db.execute(
+    by_priority = [DistributionItem(name=k, value=v) for k, v in sorted(priority_map.items())]
+
+    # 状态的分布（自己 + 共享）
+    status_own = await db.execute(
         select(Todo.status, func.count())
         .where(Todo.user_id == current_user.id)
         .group_by(Todo.status)
     )
+    status_shared = await db.execute(
+        select(Todo.status, func.count())
+        .where(Todo.id.in_(select(shared_todos_subq)))
+        .group_by(Todo.status)
+    )
 
-    by_status = [
-        DistributionItem(name=row[0].value if hasattr(row[0], 'value') else str(row[0]), value=row[1])
-        for row in status_result.all()
-    ]
+    status_map = {}
+    for row in status_own.all():
+        name = row[0].value if hasattr(row[0], 'value') else str(row[0])
+        status_map[name] = status_map.get(name, 0) + row[1]
+    for row in status_shared.all():
+        name = row[0].value if hasattr(row[0], 'value') else str(row[0])
+        status_map[name] = status_map.get(name, 0) + row[1]
+
+    by_status = [DistributionItem(name=k, value=v) for k, v in sorted(status_map.items())]
 
     return DistributionStats(by_priority=by_priority, by_status=by_status)
