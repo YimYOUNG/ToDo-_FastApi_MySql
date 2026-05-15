@@ -31,7 +31,7 @@
         <h3 style="margin-bottom:16px;">今日番茄统计</h3>
         <div style="font-size:3rem;font-weight:700;color:var(--primary-color);" id="todayCount">0</div>
         <p style="color:var(--text-secondary);">个番茄完成</p>
-        <div style="font-size:1.5rem;font-weight:600;color:var(--text-secondary);" idtotalCount">0</div>
+        <div style="font-size:1.5rem;font-weight:600;color:var(--text-secondary);" id="totalCount">0</div>
         <p style="color:var(--text-secondary);">总计番茄</p>
     </div>
 </div>
@@ -215,9 +215,6 @@ async function loadTodoSelect() {
     } catch(e) {}
 }
 
-updateDisplay();
-updateStatsDisplay();
-
 // 确保API加载完成后再初始化
 function initPomodoro() {
     if (typeof apiGet === 'undefined') {
@@ -227,10 +224,16 @@ function initPomodoro() {
     loadTodoSelect();
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initPomodoro);
-} else {
+function initPage() {
+    updateDisplay();
+    updateStatsDisplay();
     initPomodoro();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPage);
+} else {
+    initPage();
 }
 </script>
 {% endblock %}
