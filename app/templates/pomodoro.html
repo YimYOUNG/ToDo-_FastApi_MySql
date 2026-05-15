@@ -215,12 +215,13 @@ async function loadTodoSelect() {
             sel.innerHTML = '<option value="">-- 请先登录 --</option>';
             return;
         }
-        const response = await apiGet('/todos?page_size=50&status=pending');
+        const response = await apiGet('/todos?page_size=100');
         console.log('[番茄钟] API返回:', response);
         sel.innerHTML = '<option value="">-- 关联待办（可选） --</option>';
-        if (response && response.items && response.items.length > 0) {
-            console.log('[番茄钟] 待办数量:', response.items.length);
-            response.items.forEach(t => {
+        const activeTodos = response?.items?.filter(t => t.status !== 'completed' && t.status !== 'cancelled') || [];
+        if (activeTodos.length > 0) {
+            console.log('[番茄钟] 可用待办数量:', activeTodos.length);
+            activeTodos.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t.id;
                 opt.textContent = t.title;
