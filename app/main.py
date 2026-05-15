@@ -16,6 +16,16 @@ app = FastAPI(
     docs_url=None if not settings.DEBUG else "/docs",
     redoc_url=None if not settings.DEBUG else "/redoc",
     openapi_url=None if not settings.DEBUG else "/openapi.json",
+    openapi_tags=[
+        {"name": "Authentication", "description": "用户认证接口（注册/登录/Token管理）"},
+        {"name": "Todos", "description": "待办事项管理"},
+        {"name": "Tags", "description": "标签管理"},
+        {"name": "Calendar", "description": "日历视图"},
+        {"name": "Statistics", "description": "数据统计"},
+        {"name": "Collaboration", "description": "团队协作"},
+        {"name": "Export", "description": "数据导出"},
+        {"name": "Reminders", "description": "提醒功能"},
+    ],
 )
 
 trusted_hosts = ["localhost", "127.0.0.1", "8.136.51.220"]

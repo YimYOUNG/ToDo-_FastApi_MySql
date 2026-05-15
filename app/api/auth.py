@@ -18,7 +18,18 @@ from app.models.user import User
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="用户注册",
+    description="创建新用户账号，注册后可使用用户名和密码登录",
+    responses={
+        201: {"description": "注册成功"},
+        400: {"description": "请求参数错误"},
+        409: {"description": "用户名已存在"},
+    },
+)
 async def register(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db)
@@ -34,7 +45,16 @@ async def register(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    summary="用户登录",
+    description="使用用户名和密码登录，返回 Access Token 和 Refresh Token",
+    responses={
+        200: {"description": "登录成功，返回JWT令牌"},
+        401: {"description": "用户名或密码错误"},
+    },
+)
 async def login(
     credentials: UserLogin,
     db: AsyncSession = Depends(get_db)
