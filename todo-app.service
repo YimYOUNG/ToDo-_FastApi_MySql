@@ -1,19 +1,54 @@
 [Unit]
 Description=Todo App API Server
-After=network.target mysql.service
+After=network.target mysql.service nginx.service
+Wants=mysql.service
 Requires=mysql.service
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/var/www/todo-app
-Environment="PATH=/var/www/todo-app/venv/bin"
-ExecStart=/var/www/todo-app/venv/bin/gunicorn app.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 127.0.0.1:8000 --timeout 120 --access-logfile /var/log/todo-app/access.log --error-logfile /var/log/todo-app/error.log
+
+# ========== 环境变量（从 .env 读取） ==========
+EnvironmentFile=/var/www/todo-app/.env
+Environment="PATH=/var/www/todo-app/venv/bin:/usr/bin:/usr/local/bin"
+
+# ========== 日志配置 ==========
+StandardOutput=append:/var/log/todo-app/app.log
+StandardError=append:/var/log/todo-app/error.log
+
+# ========== 启动命令 ==========
+ExecStartPre=/bin/mkdir -p /var/log/todo-app
+ExecStartPre=/bin/bash -c 'source /var/www/todo-app/venv/bin/activate && pip install -r /var/www/todo-app/requirements.txt -q'
+ExecStart=/var/www/todo-app/venv/bin/gunicorn app.main:app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile /var/log/todo-app/access.log \
+    --error-logfile /var/log/todo-app/error.log \
+    --log-level info
+
+# ========== 崩溃自动重启 ==========
 Restart=always
 RestartSec=5
+
+# 防频繁崩溃保护（5次内失败则等待60秒再试）
 StartLimitBurst=5
 StartLimitIntervalSec=60
+
+# ========== 资源限制 ==========
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# ========== 优雅关闭 ==========
+ExecStop=/bin/kill -s TERM $MAINPID
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
