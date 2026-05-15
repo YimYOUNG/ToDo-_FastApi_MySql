@@ -6,7 +6,7 @@ echo "  Todo App 阿里云服务器初始化脚本"
 echo "========================================="
 
 SERVER_IP="8.136.51.220"
-MYSQL_ROOT_PASSWORD="yym123456"
+MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-your_mysql_password}"
 APP_DIR="/var/www/todo-app"
 LOG_DIR="/var/log/todo-app"
 SERVICE_FILE="todo-app.service"
